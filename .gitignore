@@ -1,0 +1,44 @@
+# Android / build output
+/build/
+/build_tmp/
+/build_tools/
+/out/
+/output/
+*.apk
+*.aab
+*.apks
+*.dex
+*.class
+*.idsig
+/libs/media3/
+
+# Local signing material & credentials (never publish)
+local.properties
+keystore.properties
+signing.properties
+*.keystore
+*.jks
+*.p12
+*.pfx
+*.pem
+*.key
+.env
+.env.*
+!.env.example
+
+# IDE / OS files
+.idea/
+*.iml
+.vscode/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Logs & temporary files
+*.log
+*.tmp
+*.bak
+*.orig
+*~
+__pycache__/
+*.py[cod]
