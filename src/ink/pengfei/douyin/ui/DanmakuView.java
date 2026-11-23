@@ -14,7 +14,7 @@ import java.util.List;
 
 /**
  * Comment danmaku layer. Comments come from the video comment API and roll right-to-left
- * in the upper area, with the same speed/size/opacity controls as LvguoTV.
+ * in the upper area, with configurable speed, size, and opacity controls.
  */
 public class DanmakuView extends View {
     public static final float[] SPEEDS = {0.7f, 1f, 1.4f};

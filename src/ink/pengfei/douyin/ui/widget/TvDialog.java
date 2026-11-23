@@ -15,7 +15,7 @@ import android.widget.TextView;
 import ink.pengfei.douyin.ui.IconView;
 import ink.pengfei.douyin.ui.Ui;
 
-/** 绿果风格的应用内确认框与列表选择框。 */
+/** 应用内确认框与列表选择框。 */
 public final class TvDialog {
     private TvDialog() {}
 
@@ -72,7 +72,7 @@ public final class TvDialog {
     }
 
     /**
-     * 绿果风格一级/二级菜单弹窗：
+     * 一级/二级菜单弹窗：
      * 传 "名称\t当前值" 且 selected=-1 表示一级菜单，点击行后再开二级选择窗；
      * 传普通选项且 selected>=0 表示二级单选列表，当前值打勾高亮。
      */

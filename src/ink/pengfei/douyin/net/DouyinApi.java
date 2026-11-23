@@ -33,7 +33,7 @@ public final class DouyinApi {
     private final CookieStore cookies;
     private final TicketGuard ticketGuard;
     private final java.util.concurrent.atomic.AtomicLong likeRevision = new java.util.concurrent.atomic.AtomicLong();
-    private final java.util.concurrent.ConcurrentHashMap<String, Boolean> likedInSession =
+    private final Map<String, Boolean> likedInSession =
             new java.util.concurrent.ConcurrentHashMap<>();
     private volatile String lastLikeError = "";
     private volatile boolean lastLikeAuthError = false;

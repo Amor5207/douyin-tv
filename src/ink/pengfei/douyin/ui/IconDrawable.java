@@ -4,7 +4,7 @@ import android.graphics.*;
 import android.graphics.drawable.Drawable;
 
 /**
- * 统一的 24 网格图标（沿用绿果TV 的重绘版）。
+ * 统一的 24 网格矢量图标。
  *
  * 规则：内容落在 3–21 的安全框内；描边 1.8、圆头圆角；
  * 实心图标（播放/暂停/上下集/星）用 CornerPathEffect 做圆角，避免尖角；

@@ -35,7 +35,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** 全屏视频页：Media3 ExoPlayer (TextureView 无感切集预热 + SimpleCache) + 绿果风格自动隐藏控制层。 */
+/** 全屏视频页：Media3 ExoPlayer (TextureView 无感切集预热 + SimpleCache) + 自动隐藏控制层。 */
 public class VideoPage extends FrameLayout {
     public interface Listener {
         void onProgress(VideoPage page, long positionMs, long durationMs);
@@ -226,7 +226,7 @@ public class VideoPage extends FrameLayout {
         spinner.setVisibility(GONE);
         addView(spinner, sp);
 
-        // 中间播放/暂停圆形按钮（参考绿果 TV 播放器）
+        // 中间播放/暂停圆形按钮
         centerToggle = new FrameLayout(c);
         centerToggle.setId(View.generateViewId());
         centerToggle.setFocusable(false);
@@ -892,7 +892,7 @@ public class VideoPage extends FrameLayout {
     public void setFullscreen(boolean full) {
     }
 
-    // ------------------------------------------------------------ 绿果风格控制层显示/隐藏
+    // ------------------------------------------------------------ 控制层显示/隐藏
 
     private void setControlsFocusable(boolean focusable) {
         if (centerToggle != null) {
@@ -1027,7 +1027,7 @@ public class VideoPage extends FrameLayout {
     }
 
     /**
-     * 控制层显示期间的遥控器处理（参考绿果 TV）：
+     * 控制层显示期间的遥控器处理：
      * - 焦点在中间播放/暂停键：确认切换播放/暂停，↑ 进顶部导航，↓ 隐藏控制层，→ 去右侧图标栏，← 隐藏控制层。
      * - 焦点在右侧图标栏：↑/↓ 切换 5 个图标（顶部再按 ↑ 进顶部导航），← 回到中间播放/暂停键，返回隐藏控制层。
      */

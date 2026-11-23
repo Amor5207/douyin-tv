@@ -44,6 +44,14 @@ public class App extends Application {
         });
         store = new Store(this);
         api = new DouyinApi(new CookieStore(this));
+        try {
+            android.content.SharedPreferences up = getSharedPreferences("update_prefs", MODE_PRIVATE);
+            android.content.pm.PackageInfo pi = getPackageManager().getPackageInfo(getPackageName(), 0);
+            int ver = android.os.Build.VERSION.SDK_INT >= 28 ? (int) pi.getLongVersionCode() : pi.versionCode;
+            if (up.getInt("last_seen_app_version", 0) != ver) {
+                up.edit().putInt("last_seen_app_version", ver).remove("update_last_check").commit();
+            }
+        } catch (Throwable ignored) {}
         ShareHub.start(store);
         new Thread(new Runnable() {
             @Override public void run() {

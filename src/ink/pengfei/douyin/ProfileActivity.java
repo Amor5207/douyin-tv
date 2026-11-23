@@ -26,7 +26,7 @@ import ink.pengfei.douyin.util.Theme;
 import java.util.ArrayList;
 import java.util.List;
 
-/** 作者主页：绿果风格头部 + 作品网格。 */
+/** 作者主页：个人资料头部 + 作品网格。 */
 public class ProfileActivity extends Activity {
     private FrameLayout content;
     private String secUid;

@@ -855,7 +855,15 @@ public class MainActivity extends Activity implements FeedView.Host {
         backDown = false;
         if (isFinishing()) return;
         if (toLoginIfNeeded()) return;
-        ink.pengfei.douyin.update.UpdateManager.onHomeResume(this);
+        try {
+            getWindow().getDecorView().post(() -> {
+                try {
+                    if (!isFinishing() && !isDestroyed()) {
+                        ink.pengfei.douyin.update.UpdateManager.onHomeResume(this);
+                    }
+                } catch (Throwable ignored) {}
+            });
+        } catch (Throwable ignored) {}
         refreshFeedAccount();
         if (selected == TAB_FEED) {
             feed.refreshDanmakuSettings();

@@ -403,7 +403,7 @@ public final class Ui {
         NoticeText(Context c) { super(c); }
     }
 
-    /** 绿果风格顶部轻提示：深色半透明胶囊，顶部居中滑入，2.2 秒后自动滑出，同容器内复用单实例不堆叠。 */
+    /** 顶部轻提示：深色半透明胶囊，顶部居中滑入，2.2 秒后自动滑出，同容器内复用单实例不堆叠。 */
     public static void notice(final android.widget.FrameLayout host, String message) {
         if (host == null || message == null || message.isEmpty()) return;
         final Context c = host.getContext();

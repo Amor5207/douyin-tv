@@ -41,7 +41,7 @@ public final class VideoCache {
         return t;
     });
     private static final AtomicInteger SEQ = new AtomicInteger();
-    private static final ConcurrentHashMap<String, CacheWriter> ACTIVE_WRITERS = new ConcurrentHashMap<>();
+    private static final Map<String, CacheWriter> ACTIVE_WRITERS = new ConcurrentHashMap<>();
 
     private VideoCache() {}
 

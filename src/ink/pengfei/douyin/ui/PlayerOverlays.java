@@ -6,7 +6,7 @@ import android.view.View;
 import ink.pengfei.douyin.App;
 import ink.pengfei.douyin.ui.widget.TvDialog;
 
-/** 绿果风格的播放页弹幕设置弹窗：一级菜单展示当前值，进入后在二级菜单单选，选完回到一级保持焦点。 */
+/** 播放页弹幕设置弹窗：一级菜单展示当前值，进入后在二级菜单单选，选完回到一级保持焦点。 */
 public final class PlayerOverlays {
     private PlayerOverlays() {}
 

@@ -13,7 +13,7 @@ import android.widget.TextView;
 
 import ink.pengfei.douyin.ui.Ui;
 
-/** 更新弹窗：标题 + 说明 + 可选进度条 + 操作按钮，样式与绿果TV一致。 */
+/** 更新弹窗：标题 + 说明 + 可选进度条 + 操作按钮。 */
 final class UpdateDialog {
     static final class Btn {
         final String label;

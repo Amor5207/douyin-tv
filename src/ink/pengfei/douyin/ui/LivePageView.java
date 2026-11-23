@@ -230,7 +230,7 @@ public class LivePageView extends FrameLayout {
         sp.gravity = Gravity.CENTER;
         addView(spinner, sp);
 
-        // 中间播放/暂停圆形按钮（参考绿果 TV 播放器）
+        // 中间播放/暂停圆形按钮
         centerToggle = new FrameLayout(c);
         centerToggle.setId(View.generateViewId());
         centerToggle.setFocusable(false);

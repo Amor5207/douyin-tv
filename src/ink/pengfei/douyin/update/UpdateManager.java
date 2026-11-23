@@ -17,20 +17,22 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * 检查更新统一入口（沿用绿果TV 更新逻辑，传递抖音TV 自身的包名与版本参数）。
+ * 检查更新的统一入口：
+ *  - 每次冷启动立即检查；同一次进程内按间隔（正式版 10 分钟 / 测试版 1 分钟）节流；
+ *  - 所有网络与下载都在独立的后台线程（NORM_PRIORITY）执行，避免启动期被饿死；
+ *  - 支持可忽略更新（记住忽略的 versionCode）与跨版本 full 更新升级提示。
  */
 public final class UpdateManager {
     private UpdateManager() {}
 
     private enum State { IDLE, AVAILABLE, DOWNLOADING, READY }
 
-    private static final String P_LAST = "update_last_check", P_SNOOZE = "update_snooze_until",
-            P_SNOOZE_CODE = "update_snooze_code";
+    private static final String P_LAST = "update_last_check", P_IGNORED = "update_ignored_code";
     private static final Handler MAIN = new Handler(Looper.getMainLooper());
     private static final ExecutorService POOL = Executors.newSingleThreadExecutor(r -> {
         Thread t = new Thread(r, "update");
         t.setDaemon(true);
-        t.setPriority(Thread.MIN_PRIORITY);
+        t.setPriority(Thread.NORM_PRIORITY);
         return t;
     });
 
@@ -39,6 +41,7 @@ public final class UpdateManager {
     private static volatile File ready;
     private static volatile long done, total;
     private static volatile boolean checking, readyPrompted;
+    private static volatile long lastSessionCheckAt;
     private static volatile UpdateDownloader downloader;
     private static volatile UpdateDialog progressDialog;
     private static volatile Runnable listener;
@@ -77,7 +80,13 @@ public final class UpdateManager {
         return name == null || name.isEmpty() ? "抖音TV" : "抖音TV " + name;
     }
 
-    /** 首页恢复时调用：静默检查（有节流）。 */
+    /** 关于页展示：有待安装的新版本时返回版本名，否则返回 null。 */
+    public static String availableVersion() {
+        UpdateInfo i = info;
+        return i == null || state == State.IDLE ? null : i.versionName;
+    }
+
+    /** 首页恢复时调用：每次冷启动立即检查；同一次进程内按间隔节流；有后台下好的新版本则提示安装。绝不抛异常。 */
     public static void onHomeResume(Activity host) {
         try {
             resumePendingInstall(host);
@@ -86,12 +95,12 @@ public final class UpdateManager {
                 return;
             }
             if (state == State.DOWNLOADING || checking) return;
-            if (state == State.AVAILABLE && info != null && !snoozed(host, info)) {
+            if (state == State.AVAILABLE && info != null && shouldPrompt(host, info)) {
                 showFound(host);
                 return;
             }
             long now = System.currentTimeMillis();
-            if (now - prefs(host).getLong(P_LAST, 0) < UpdateConfig.CHECK_INTERVAL_MS) return;
+            if (lastSessionCheckAt > 0 && now - lastSessionCheckAt < UpdateConfig.checkInterval(host)) return;
             runCheck(host, false);
         } catch (Throwable ignored) {}
     }
@@ -106,17 +115,17 @@ public final class UpdateManager {
                 default: break;
             }
             if (checking) {
-                toast(host, "正在检查更新…");
+                toast(host, "正在检查…");
                 return;
             }
             toast(host, "正在检查更新…");
             runCheck(host, true);
         } catch (Throwable e) {
-            toast(host, "已是最新版本");
+            toast(host, "检查失败，请稍后重试");
         }
     }
 
-    /** 启动时清理旧安装包。 */
+    /** 启动时清理旧安装包（已安装的版本 / 残留的半成品）。 */
     public static void cleanup(Context c) {
         final Context app = c.getApplicationContext();
         POOL.execute(() -> {
@@ -137,6 +146,7 @@ public final class UpdateManager {
         });
     }
 
+    /** 删掉除 keepCode 以外的所有已下载安装包（keepCode = -1 表示全删；正在下载的不动）。 */
     private static void purgeExcept(Context c, int keepCode) {
         try {
             if (state == State.DOWNLOADING) return;
@@ -161,11 +171,13 @@ public final class UpdateManager {
             try {
                 r = UpdateChecker.check(app);
             } catch (Throwable e) {
-                r = new UpdateChecker.Result(true, null);
+                r = new UpdateChecker.Result(false, null);
             }
             checking = false;
             if (r.ok) {
-                prefs(app).edit().putLong(P_LAST, System.currentTimeMillis()).apply();
+                long checkedAt = System.currentTimeMillis();
+                lastSessionCheckAt = checkedAt;
+                prefs(app).edit().putLong(P_LAST, checkedAt).apply();
                 purgeExcept(app, r.info == null ? -1 : r.info.versionCode);
             }
             final UpdateChecker.Result res = r;
@@ -185,7 +197,7 @@ public final class UpdateManager {
                         if (state == State.READY) {
                             if (manual) install(host);
                             else promptReadyOnce(host);
-                        } else if (state == State.AVAILABLE && (manual || info.force || !snoozed(app, info))) {
+                        } else if (state == State.AVAILABLE && (manual || shouldPrompt(app, info))) {
                             showFound(host);
                         }
                     } else {
@@ -202,11 +214,13 @@ public final class UpdateManager {
         });
     }
 
-    private static boolean snoozed(Context c, UpdateInfo i) {
-        if (i.force) return false;
-        SharedPreferences p = prefs(c);
-        return p.getInt(P_SNOOZE_CODE, 0) == i.versionCode
-                && System.currentTimeMillis() < p.getLong(P_SNOOZE, 0);
+    /** 自动弹窗策略：签名模块更新只在关于页展示；忽略过的版本不再打扰。 */
+    private static boolean shouldPrompt(Context c, UpdateInfo i) {
+        return !i.quiet() && !ignored(c, i);
+    }
+
+    private static boolean ignored(Context c, UpdateInfo i) {
+        return prefs(c).getInt(P_IGNORED, 0) == i.versionCode;
     }
 
     private static void showFound(Activity host) {
@@ -214,16 +228,14 @@ public final class UpdateManager {
         if (i == null || host.isFinishing()) return;
         String msg = String.format(Locale.US, "%s · %.1f MB", i.versionName, i.size / 1048576.0)
                 + (i.notes.isEmpty() ? "" : "\n\n" + i.notes);
-        String title = (i.force ? "需要更新到 " : "发现新版本 ") + i.versionName;
-        UpdateDialog.Btn cancel = new UpdateDialog.Btn("取消", false, () ->
-                prefs(host).edit().putInt(P_SNOOZE_CODE, i.versionCode)
-                        .putLong(P_SNOOZE, System.currentTimeMillis() + UpdateConfig.SNOOZE_MS).apply());
+        String title = "发现新版本 " + i.versionName;
+        UpdateDialog.Btn ignore = new UpdateDialog.Btn("忽略本次更新", false, () ->
+                prefs(host).edit().putInt(P_IGNORED, i.versionCode).apply());
         UpdateDialog.Btn go = new UpdateDialog.Btn("更新", true, () -> {
             startDownload(host, i, true);
             showProgress(host);
         });
-        if (i.force) new UpdateDialog(host, title, msg, false, true, null, go);
-        else new UpdateDialog(host, title, msg, false, true, null, cancel, go);
+        new UpdateDialog(host, title, msg, false, true, null, ignore, go);
     }
 
     private static void showProgress(Activity host) {
@@ -255,7 +267,7 @@ public final class UpdateManager {
 
     private static void promptReadyOnce(Activity host) {
         final UpdateInfo i = info;
-        if (readyPrompted || i == null || ready == null || host.isFinishing()) return;
+        if (readyPrompted || i == null || ready == null || host.isFinishing() || ignored(host, i)) return;
         readyPrompted = true;
         new UpdateDialog(host, "新版本已下载", i.versionName + " 已准备好，是否现在安装？", false, true, null,
                 new UpdateDialog.Btn("取消", false, null),

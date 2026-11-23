@@ -12,7 +12,7 @@ import android.widget.TextView;
 import ink.pengfei.douyin.ui.Ui;
 import ink.pengfei.douyin.util.Images;
 
-/** 绿果风格海报卡片：RoundFrame 同心裁切 + 聚焦环 + 渐变底 + 角标 + 双行元信息。 */
+/** 海报卡片：RoundFrame 同心裁切 + 聚焦环 + 渐变底 + 角标 + 双行元信息。 */
 public class PosterCard extends LinearLayout {
     private final RoundFrame frame;
     private final ImageView cover;

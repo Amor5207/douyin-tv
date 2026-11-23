@@ -12,7 +12,7 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.net.URLEncoder;
 
-/** 向更新服务查询最新版本。后端尚未配置当前包或网络不可达时返回无更新，不影响使用。 */
+/** 向更新服务查询最新版本。任何异常都吞掉并返回「查不到」，绝不向外抛。 */
 final class UpdateChecker {
     private UpdateChecker() {}
 
@@ -39,6 +39,7 @@ final class UpdateChecker {
         return ua;
     }
 
+    /** 结果：info 为 null 表示没有新版本或查询失败；ok 区分「已是最新」与「没查成」。 */
     static final class Result {
         final boolean ok;
         final UpdateInfo info;
@@ -56,22 +57,18 @@ final class UpdateChecker {
 
     private static Result checkPackage(Context c, String packageName, int cur, String version) {
         try {
-            if (cur < 0) return new Result(true, null);
-            ua = "DouyinTV/" + version + " (Android " + Build.VERSION.RELEASE + "; "
-                    + Build.MODEL + "; code=" + cur + "; pkg=" + packageName + ")";
+            if (cur < 0) return new Result(false, null);
+            ua = packageName + "/" + version + " (" + cur + ")";
             String url = UpdateConfig.BASE + "/api/v1/check?app=" + URLEncoder.encode(packageName, "UTF-8")
                     + "&versionCode=" + cur
-                    + "&versionName=" + URLEncoder.encode(version == null ? "" : version, "UTF-8")
-                    + "&channel=" + UpdateConfig.CHANNEL;
+                    + "&channel=" + UpdateConfig.channel(c);
             HttpURLConnection h = (HttpURLConnection) new URL(url).openConnection();
             try {
                 h.setConnectTimeout(UpdateConfig.CONNECT_TIMEOUT_MS);
                 h.setReadTimeout(UpdateConfig.READ_TIMEOUT_MS);
                 h.setRequestProperty("User-Agent", ua);
                 h.setRequestProperty("Accept", "application/json");
-                int code = h.getResponseCode();
-                if (code == 404 || code == 204) return new Result(true, null);
-                if (code != 200) return new Result(true, null);
+                if (h.getResponseCode() != 200) return new Result(false, null);
                 try (InputStream in = h.getInputStream()) {
                     ByteArrayOutputStream bo = new ByteArrayOutputStream();
                     byte[] buf = new byte[4096];
@@ -79,19 +76,19 @@ final class UpdateChecker {
                     while ((n = in.read(buf)) > 0 && (total += n) < 65536) bo.write(buf, 0, n);
                     JSONObject j = new JSONObject(bo.toString("UTF-8"));
                     if (!j.optBoolean("update")) return new Result(true, null);
-                    UpdateInfo info = new UpdateInfo(j);
+                    UpdateInfo info = new UpdateInfo(j, cur);
                     if (info.valid() && info.versionCode > cur && olderNumericVersion(info.versionName, version)) {
                         return new Result(true, null);
                     }
                     return info.valid() && info.versionCode > cur
                             ? new Result(true, info)
-                            : new Result(true, null);
+                            : new Result(false, null);
                 }
             } finally {
                 h.disconnect();
             }
         } catch (Throwable e) {
-            return new Result(true, null);
+            return new Result(false, null);
         }
     }
 

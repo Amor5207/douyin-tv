@@ -36,7 +36,7 @@ import java.util.Random;
 /**
  * 手机抖音扫码登录：
  * - 扫码后立即展示清晰的「已扫码」提示，不闪现误导性的失败文案；
- * - 若抖音要求短信安全验证，在右侧原位切换为绿果风格原生数字输入框，直接调用系统数字输入法。
+ * - 若抖音要求短信安全验证，在右侧原位切换为原生数字输入框，直接调用系统数字输入法。
  */
 public class LoginActivity extends Activity {
     private static final long POLL_BASE = 2200;
@@ -167,7 +167,23 @@ public class LoginActivity extends Activity {
         }
         Theme.applyWindow(this);
         setContentView(build());
+        ink.pengfei.douyin.update.UpdateManager.cleanup(this);
         loadQr();
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (isFinishing()) return;
+        try {
+            getWindow().getDecorView().post(() -> {
+                try {
+                    if (!isFinishing() && !isDestroyed()) {
+                        ink.pengfei.douyin.update.UpdateManager.onHomeResume(this);
+                    }
+                } catch (Throwable ignored) {}
+            });
+        } catch (Throwable ignored) {}
     }
 
     /** 仅限 debug 包本地验证扫码状态与内联短信验证码界面。 */
@@ -362,7 +378,7 @@ public class LoginActivity extends Activity {
         return side;
     }
 
-    /** 参考绿果 TV 登录表单：原生数字输入框 + 倒计时重发 + 主色确认按钮，不弹窗、不自绘九宫格。 */
+    /** 原生数字输入框 + 倒计时重发 + 主色确认按钮，不弹窗、不自绘九宫格。 */
     private View buildMfaForm() {
         LinearLayout box = Ui.column(this);
 
@@ -1012,7 +1028,7 @@ public class LoginActivity extends Activity {
         });
     }
 
-    // ---------- 短信二次验证（右侧原位切换，绿果风格原生数字输入） ----------
+    // ---------- 短信二次验证（右侧原位切换，原生数字输入） ----------
 
     private void beginMfa(JSONObject data) {
         mfaData = data;
