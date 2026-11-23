@@ -16,12 +16,18 @@ import java.net.URL;
 
 public final class Images {
     private static final java.util.concurrent.ExecutorService IMAGE_POOL =
-            java.util.concurrent.Executors.newFixedThreadPool(6);
-    private static final int CACHE_BYTES = (int) Math.min(24L * 1024 * 1024,
-            Math.max(8L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 10L));
+            java.util.concurrent.Executors.newFixedThreadPool(4, r -> {
+                Thread t = new Thread(r, "dytv-img");
+                t.setPriority(Thread.MIN_PRIORITY);
+                t.setDaemon(true);
+                return t;
+            });
+    private static final int MAX_IMAGE_BYTES = 6 * 1024 * 1024;
+    private static final int CACHE_BYTES = (int) Math.min(16L * 1024 * 1024,
+            Math.max(6L * 1024 * 1024, Runtime.getRuntime().maxMemory() / 12L));
     private static final LruCache<String, Bitmap> CACHE = new LruCache<String, Bitmap>(CACHE_BYTES) {
         @Override protected int sizeOf(String key, Bitmap value) {
-            return value.getByteCount();
+            return value == null || value.isRecycled() ? 0 : value.getByteCount();
         }
     };
 
@@ -52,7 +58,7 @@ public final class Images {
         final Bitmap cached = CACHE.get(key);
         view.setTag(key);
         view.animate().cancel();
-        if (cached != null) {
+        if (cached != null && !cached.isRecycled()) {
             view.setAlpha(1f);
             view.setImageBitmap(cached);
             return;
@@ -61,7 +67,7 @@ public final class Images {
         IMAGE_POOL.execute(() -> {
             final Bitmap loaded = fetchAndDecode(url, key, widthPx, radiusPx);
             Async.ui(() -> {
-                if (loaded != null && key.equals(view.getTag())) {
+                if (loaded != null && !loaded.isRecycled() && key.equals(view.getTag())) {
                     view.animate().cancel();
                     if (view.isShown()) {
                         view.setAlpha(0f);
@@ -79,20 +85,21 @@ public final class Images {
 
     private static Bitmap fetchAndDecode(String url, String key, int widthPx, int radiusPx) {
         Bitmap cached = CACHE.get(key);
-        if (cached != null) return cached;
+        if (cached != null && !cached.isRecycled()) return cached;
+        HttpURLConnection c = null;
         try {
-            HttpURLConnection c = (HttpURLConnection) new URL(url).openConnection();
+            c = (HttpURLConnection) new URL(url).openConnection();
             c.setConnectTimeout(8000);
             c.setReadTimeout(12000);
             c.setRequestProperty("User-Agent", ink.pengfei.douyin.net.Http.UA);
             c.setRequestProperty("Referer", "https://www.douyin.com/");
             if (c.getResponseCode() >= 400) {
-                c.disconnect();
                 return null;
             }
+            byte[] data = read(c);
+            if (data == null || data.length == 0) return null;
             BitmapFactory.Options bounds = new BitmapFactory.Options();
             bounds.inJustDecodeBounds = true;
-            byte[] data = read(c);
             BitmapFactory.decodeByteArray(data, 0, data.length, bounds);
             int cap = widthPx > 420 ? Math.min(widthPx, 960) : 420;
             int targetWidth = widthPx > 0 ? Math.min(widthPx, cap) : 420;
@@ -117,20 +124,29 @@ public final class Images {
                 CACHE.put(key, bmp);
                 return bmp;
             }
-        } catch (Exception ignored) {
+        } catch (OutOfMemoryError oom) {
+            CACHE.trimToSize(CACHE.size() / 2);
+        } catch (Throwable ignored) {
+        } finally {
+            if (c != null) {
+                try { c.disconnect(); } catch (Throwable ignored) {}
+            }
         }
         return null;
     }
 
     private static byte[] read(HttpURLConnection c) throws Exception {
-        InputStream is = c.getInputStream();
-        java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
-        byte[] buf = new byte[16384];
-        int n;
-        while ((n = is.read(buf)) > 0) bos.write(buf, 0, n);
-        is.close();
-        c.disconnect();
-        return bos.toByteArray();
+        try (InputStream is = c.getInputStream()) {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream();
+            byte[] buf = new byte[16384];
+            int n, total = 0;
+            while ((n = is.read(buf)) > 0) {
+                total += n;
+                if (total > MAX_IMAGE_BYTES) return null;
+                bos.write(buf, 0, n);
+            }
+            return bos.toByteArray();
+        }
     }
 
     private static Bitmap round(Bitmap src, int radiusPx) {

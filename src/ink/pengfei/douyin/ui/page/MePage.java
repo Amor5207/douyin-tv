@@ -558,7 +558,9 @@ public class MePage extends ShellPage {
     }
 
     private void openItem(final int tab, Aweme item, int position) {
+        if (!(getContext() instanceof Activity)) return;
         Activity activity = (Activity) getContext();
+        if (activity.isFinishing() || activity.isDestroyed()) return;
         if (tab == TAB_RECENT) {
             PlayerActivity.openRecent(activity, position);
             return;
@@ -903,7 +905,8 @@ public class MePage extends ShellPage {
 
     private void paintProfile() {
         Context c = getContext();
-        String name = logged() ? App.get().store().lastAccountName() : "";
+        String rawName = logged() ? App.get().store().lastAccountName() : "";
+        String name = rawName == null ? "" : rawName;
         accountName.setText(name.isEmpty() ? (logged() ? "抖音账号" : "未登录") : name);
         nameInitial.setText(name.isEmpty() ? "抖" : name.substring(0, name.offsetByCodePoints(0, 1)));
         String bio = !logged() ? "扫码登录查看作品、喜欢与收藏"

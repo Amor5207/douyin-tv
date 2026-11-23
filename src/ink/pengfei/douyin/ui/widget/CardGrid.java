@@ -52,6 +52,8 @@ public class CardGrid extends LinearLayout {
     private float density = 1f;
     private int lastWidth;
     private boolean autoBatch = true;
+    private android.view.ViewTreeObserver.OnGlobalFocusChangeListener focusWatcher;
+    private boolean pendingRebuild;
 
     public CardGrid(Context c) {
         super(c);
@@ -61,18 +63,14 @@ public class CardGrid extends LinearLayout {
         density = c.getResources().getDisplayMetrics().density;
         rowGap = Ui.dp(c, 22);
         columnGap = Ui.dp(c, 16);
-        installFocusWatcher();
-    }
-
-    private void installFocusWatcher() {
-        getViewTreeObserver().addOnGlobalFocusChangeListener((oldFocus, newFocus) -> {
+        focusWatcher = (oldFocus, newFocus) -> {
             if (newFocus == null || !isDescendant(newFocus)) return;
             int index = indexOfTaggedAncestor(newFocus);
             if (index < 0) return;
             if (index >= shown - cols * 3) {
                 onScrollNearBottom();
             }
-        });
+        };
     }
 
     public void onScrollNearBottom() {
@@ -83,12 +81,19 @@ public class CardGrid extends LinearLayout {
     @Override
     protected void onAttachedToWindow() {
         super.onAttachedToWindow();
+        if (focusWatcher != null) {
+            getViewTreeObserver().removeOnGlobalFocusChangeListener(focusWatcher);
+            getViewTreeObserver().addOnGlobalFocusChangeListener(focusWatcher);
+        }
         FocusScrollView scroller = parentScroller();
         if (scroller != null) scroller.setOnNearBottom(this::onScrollNearBottom);
     }
 
     @Override
     protected void onDetachedFromWindow() {
+        if (focusWatcher != null) {
+            getViewTreeObserver().removeOnGlobalFocusChangeListener(focusWatcher);
+        }
         FocusScrollView scroller = parentScroller();
         if (scroller != null) scroller.setOnNearBottom(null);
         super.onDetachedFromWindow();
@@ -179,26 +184,45 @@ public class CardGrid extends LinearLayout {
     }
 
     @Override
+    protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+        super.onSizeChanged(w, h, oldw, oldh);
+        if (w > 0 && (w != lastWidth || (shown == 0 && !data.isEmpty()))) {
+            scheduleRebuild(w);
+        }
+    }
+
+    @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int width = MeasureSpec.getSize(widthMeasureSpec);
-        if (width > 0 && width != lastWidth) {
-            Metrics m = measureMetrics(getContext(), width);
-            if (m.cols != cols || m.cardW != cardW || m.colGap != columnGap) {
+        if (width > 0 && (width != lastWidth || (shown == 0 && !data.isEmpty()))) {
+            scheduleRebuild(width);
+        }
+        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+    }
+
+    private void scheduleRebuild(final int width) {
+        if (pendingRebuild && width == lastWidth) return;
+        pendingRebuild = true;
+        post(() -> {
+            pendingRebuild = false;
+            if (!isAttachedToWindow()) return;
+            int w = getWidth() > 0 ? getWidth() : width;
+            if (w <= 0) return;
+            Metrics m = measureMetrics(getContext(), w);
+            boolean metricsChanged = m.cols != cols || m.cardW != cardW || m.colGap != columnGap;
+            lastWidth = w;
+            if (metricsChanged || (shown == 0 && !data.isEmpty())) {
                 cols = m.cols;
                 cardW = m.cardW;
                 cardH = m.cardH;
                 columnGap = m.colGap;
-                lastWidth = width;
                 int keep = shown;
                 shown = 0;
                 removeAllViews();
                 addBatch();
                 while (shown < keep && shown < data.size()) addBatch();
-            } else {
-                lastWidth = width;
             }
-        }
-        super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+        });
     }
 
     private void addBatch() {

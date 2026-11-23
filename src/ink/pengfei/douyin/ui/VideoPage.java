@@ -465,122 +465,128 @@ public class VideoPage extends FrameLayout {
     private synchronized void openUrl() {
         if (item == null || urlIndex >= urls.size() || released) return;
         final String url = urls.get(urlIndex);
+        final long gen = itemGeneration;
         VideoCache.cancelPreloadFor(url);
         releasePlayer();
         attemptStarted = SystemClock.elapsedRealtime();
 
-        DefaultRenderersFactory renderers = new DefaultRenderersFactory(getContext())
-                .setEnableDecoderFallback(true);
-        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(12000, 40000, 200, 1000)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build();
-        AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .build();
-
-        final ExoPlayer exo = new ExoPlayer.Builder(getContext(), renderers)
-                .setMediaSourceFactory(new DefaultMediaSourceFactory(VideoCache.dataSourceFactory(getContext()))
-                        .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(0)))
-                .setLoadControl(loadControl)
-                .setAudioAttributes(audioAttributes, !standbyMode)
-                .build();
-        player = exo;
-        textureView.setVisibility(VISIBLE);
-        exo.setVideoTextureView(textureView);
-        exo.setVolume(standbyMode ? 0f : 1f);
-        exo.setRepeatMode(App.get().store().autoNext() ? Player.REPEAT_MODE_OFF : Player.REPEAT_MODE_ONE);
-        exo.setPlaybackSpeed(SPEEDS[speedIndex()]);
-        exo.addListener(new Player.Listener() {
-            @Override public void onPlaybackStateChanged(int playbackState) {
-                if (player != exo || released) return;
-                if (playbackState == Player.STATE_BUFFERING && wantPlay && !standbyMode) {
-                    scheduleLoadingSpinner();
-                    handler.removeCallbacks(bufferTimeout);
-                    handler.postDelayed(bufferTimeout, 15000);
-                } else if (playbackState == Player.STATE_READY) {
-                    prepared = true;
-                    handler.removeCallbacks(startupTimeout);
-                    handler.removeCallbacks(bufferTimeout);
-                    if (renderedFirstFrame && !standbyMode) hideLoadingSpinner();
-                    applyVideoSize(exo.getVideoSize());
-                    if (!standbyMode && restorePosition > 0) {
-                        long target = restorePosition;
-                        restorePosition = 0;
-                        exo.seekTo(target);
-                    }
-                    if (!standbyMode && exo.isPlaying()) startTicker();
-                } else if (playbackState == Player.STATE_ENDED) {
-                    stopTicker();
-                    if (!standbyMode && wantPlay && App.get().store().autoNext() && ended != null) {
-                        ended.run();
-                    }
-                }
-            }
-
-            @Override public void onIsPlayingChanged(boolean isPlaying) {
-                if (player != exo || released) return;
-                if (isPlaying && !standbyMode) {
-                    if (renderedFirstFrame) hideLoadingSpinner();
-                    startTicker();
-                } else {
-                    stopTicker();
-                }
-            }
-
-            @Override public void onVideoSizeChanged(VideoSize videoSize) {
-                if (player == exo && !released && videoSize != null) {
-                    applyVideoSize(videoSize);
-                }
-            }
-
-            @Override public void onRenderedFirstFrame() {
-                if (player != exo || released) return;
-                renderedFirstFrame = true;
-                hideCoverMask();
-                if (standbyMode) {
-                    standbyDecoderErrors = 0;
-                    return;
-                }
-                hideLoadingSpinner();
-                if (wantPlay && item != null && danmakuQueue.isEmpty() && App.get().store().danmakuOn()) {
-                    loadDanmaku(item);
-                }
-                if (actions != null) actions.onVideoPlaying();
-            }
-
-            @Override public void onPlayerError(PlaybackException error) {
-                if (player != exo || released) return;
-                if (standbyMode) {
-                    android.util.Log.w("dytv-player", "Standby Exo error=" + error.getErrorCodeName());
-                    standbyMode = false;
-                    standbyDecoderErrors++;
-                    if (standbyDecoderErrors >= 2) standbyDecoderAllowed = false;
-                    releasePlayer();
-                    return;
-                }
-                android.util.Log.w("dytv-player", "Exo error=" + error.getErrorCodeName()
-                        + " urlIdx=" + urlIndex + " msg=" + error.getMessage());
-                if (prepared) restorePosition = Math.max(0, exo.getCurrentPosition());
-                tryNextUrl();
-            }
-        });
-
         try {
+            DefaultRenderersFactory renderers = new DefaultRenderersFactory(getContext())
+                    .setEnableDecoderFallback(true);
+            DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(12000, 40000, 200, 1000)
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build();
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build();
+
+            final ExoPlayer exo = new ExoPlayer.Builder(getContext(), renderers)
+                    .setMediaSourceFactory(new DefaultMediaSourceFactory(VideoCache.dataSourceFactory(getContext()))
+                            .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(0)))
+                    .setLoadControl(loadControl)
+                    .setAudioAttributes(audioAttributes, !standbyMode)
+                    .build();
+            player = exo;
+            textureView.setVisibility(VISIBLE);
+            exo.setVideoTextureView(textureView);
+            exo.setVolume(standbyMode ? 0f : 1f);
+            exo.setRepeatMode(App.get().store().autoNext() ? Player.REPEAT_MODE_OFF : Player.REPEAT_MODE_ONE);
+            exo.setPlaybackSpeed(SPEEDS[speedIndex()]);
+            exo.addListener(new Player.Listener() {
+                @Override public void onPlaybackStateChanged(int playbackState) {
+                    if (player != exo || released) return;
+                    if (playbackState == Player.STATE_BUFFERING && wantPlay && !standbyMode) {
+                        scheduleLoadingSpinner();
+                        handler.removeCallbacks(bufferTimeout);
+                        handler.postDelayed(bufferTimeout, 15000);
+                    } else if (playbackState == Player.STATE_READY) {
+                        prepared = true;
+                        handler.removeCallbacks(startupTimeout);
+                        handler.removeCallbacks(bufferTimeout);
+                        if (renderedFirstFrame && !standbyMode) hideLoadingSpinner();
+                        applyVideoSize(exo.getVideoSize());
+                        if (!standbyMode && restorePosition > 0) {
+                            long target = restorePosition;
+                            restorePosition = 0;
+                            exo.seekTo(target);
+                        }
+                        if (!standbyMode && exo.isPlaying()) startTicker();
+                    } else if (playbackState == Player.STATE_ENDED) {
+                        stopTicker();
+                        if (!standbyMode && wantPlay && App.get().store().autoNext() && ended != null) {
+                            ended.run();
+                        }
+                    }
+                }
+
+                @Override public void onIsPlayingChanged(boolean isPlaying) {
+                    if (player != exo || released) return;
+                    if (isPlaying && !standbyMode) {
+                        if (renderedFirstFrame) hideLoadingSpinner();
+                        startTicker();
+                    } else {
+                        stopTicker();
+                    }
+                }
+
+                @Override public void onVideoSizeChanged(VideoSize videoSize) {
+                    if (player == exo && !released && videoSize != null) {
+                        applyVideoSize(videoSize);
+                    }
+                }
+
+                @Override public void onRenderedFirstFrame() {
+                    if (player != exo || released) return;
+                    renderedFirstFrame = true;
+                    hideCoverMask();
+                    if (standbyMode) {
+                        standbyDecoderErrors = 0;
+                        return;
+                    }
+                    hideLoadingSpinner();
+                    if (wantPlay && item != null && danmakuQueue.isEmpty() && App.get().store().danmakuOn()) {
+                        loadDanmaku(item);
+                    }
+                    if (actions != null) actions.onVideoPlaying();
+                }
+
+                @Override public void onPlayerError(PlaybackException error) {
+                    if (player != exo || released) return;
+                    if (standbyMode) {
+                        android.util.Log.w("dytv-player", "Standby Exo error=" + error.getErrorCodeName());
+                        standbyMode = false;
+                        standbyDecoderErrors++;
+                        if (standbyDecoderErrors >= 2) standbyDecoderAllowed = false;
+                        handler.post(() -> { if (player == exo) releasePlayer(); });
+                        return;
+                    }
+                    android.util.Log.w("dytv-player", "Exo error=" + error.getErrorCodeName()
+                            + " urlIdx=" + urlIndex + " msg=" + error.getMessage());
+                    if (prepared) restorePosition = Math.max(0, exo.getCurrentPosition());
+                    handler.post(() -> {
+                        if (!released && itemGeneration == gen && player == exo) tryNextUrl();
+                    });
+                }
+            });
+
             exo.setMediaItem(MediaItem.fromUri(url));
             exo.setPlayWhenReady(!standbyMode && wantPlay);
             exo.prepare();
             handler.removeCallbacks(startupTimeout);
             if (!standbyMode) handler.postDelayed(startupTimeout, 5500);
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            android.util.Log.w("dytv-player", "openUrl failed: " + e);
             if (standbyMode) {
                 standbyMode = false;
                 standbyDecoderErrors++;
                 if (standbyDecoderErrors >= 2) standbyDecoderAllowed = false;
                 releasePlayer();
             } else {
-                tryNextUrl();
+                handler.post(() -> {
+                    if (!released && itemGeneration == gen) tryNextUrl();
+                });
             }
         }
     }
@@ -1164,9 +1170,9 @@ public class VideoPage extends FrameLayout {
         renderedFirstFrame = false;
         showCoverMask();
         if (player != null) {
-            try { player.clearVideoTextureView(textureView); } catch (Exception ignored) {}
-            try { player.stop(); } catch (Exception ignored) {}
-            try { player.release(); } catch (Exception ignored) {}
+            try { player.clearVideoTextureView(textureView); } catch (Throwable ignored) {}
+            try { player.stop(); } catch (Throwable ignored) {}
+            try { player.release(); } catch (Throwable ignored) {}
             player = null;
         }
         prepared = false;

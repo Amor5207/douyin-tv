@@ -35,6 +35,11 @@ public class LivePage extends ShellPage implements LiveFeedView.Host {
             if (loading && loadingBar != null) loadingBar.setVisibility(View.VISIBLE);
         }
     };
+    private final Runnable deferredPlay = new Runnable() {
+        @Override public void run() {
+            if (active && !feed.rooms().isEmpty()) feed.play();
+        }
+    };
     private boolean loading;
     private boolean loadingMore;
     private boolean loaded;
@@ -89,14 +94,23 @@ public class LivePage extends ShellPage implements LiveFeedView.Host {
     @Override
     public void onShow() {
         active = true;
+        handler.removeCallbacks(deferredPlay);
         if ((!loaded || feed.rooms().isEmpty()) && !loading) loadFirst();
-        else if (!feed.rooms().isEmpty()) feed.play();
+        else if (!feed.rooms().isEmpty()) handler.postDelayed(deferredPlay, 80L);
     }
 
     @Override
     public void onHide() {
         active = false;
+        handler.removeCallbacks(deferredPlay);
         feed.stop();
+    }
+
+    @Override
+    public void onDestroy() {
+        active = false;
+        handler.removeCallbacksAndMessages(null);
+        feed.release();
     }
 
     @Override
@@ -125,6 +139,7 @@ public class LivePage extends ShellPage implements LiveFeedView.Host {
     protected void onDetachedFromWindow() {
         super.onDetachedFromWindow();
         handler.removeCallbacks(delayedLoadingBar);
+        handler.removeCallbacks(deferredPlay);
     }
 
     private void loadFirst() {

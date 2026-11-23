@@ -17,6 +17,9 @@ public abstract class ShellPage extends FrameLayout {
     public void onHide() {
     }
 
+    public void onDestroy() {
+    }
+
     public boolean onBack() {
         return false;
     }

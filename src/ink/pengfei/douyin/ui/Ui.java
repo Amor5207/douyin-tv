@@ -796,15 +796,17 @@ public final class Ui {
             rebuild(fallbackCols, CARD_W, CARD_H, dp(c, 16), dp(c, 22));
         }
 
-        @Override protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
-            int width = MeasureSpec.getSize(widthMeasureSpec);
-            if (width > 0 && width != builtWidth) {
-                builtWidth = width;
-                ink.pengfei.douyin.ui.widget.CardGrid.Metrics m =
-                        ink.pengfei.douyin.ui.widget.CardGrid.measureMetrics(getContext(), width);
-                rebuild(m.cols, m.cardW, m.cardH, m.colGap, m.rowGap);
+        @Override protected void onSizeChanged(int w, int h, int oldw, int oldh) {
+            super.onSizeChanged(w, h, oldw, oldh);
+            if (w > 0 && w != builtWidth) {
+                builtWidth = w;
+                post(() -> {
+                    if (!isAttachedToWindow()) return;
+                    ink.pengfei.douyin.ui.widget.CardGrid.Metrics m =
+                            ink.pengfei.douyin.ui.widget.CardGrid.measureMetrics(getContext(), builtWidth);
+                    rebuild(m.cols, m.cardW, m.cardH, m.colGap, m.rowGap);
+                });
             }
-            super.onMeasure(widthMeasureSpec, heightMeasureSpec);
         }
 
         private void rebuild(int cols, int cardWDp, int cardHDp, int colGapPx, int rowGapPx) {

@@ -37,6 +37,7 @@ public class ProfileActivity extends Activity {
     private long nextCursor;
     private boolean hasMorePosts;
     private boolean loadingMore;
+    private boolean backDown;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -152,10 +153,11 @@ public class ProfileActivity extends Activity {
         header.setBackground(Ui.roundStroke(this, Ui.SURFACE, 20, Ui.SEPARATOR, 1));
         Ui.padding(header, 26, 20, 26, 20);
         String nick = p != null && p.nickname != null && !p.nickname.isEmpty()
-                ? p.nickname : fallbackName == null ? "抖音作者" : fallbackName;
+                ? p.nickname : (fallbackName == null || fallbackName.isEmpty() ? "抖音作者" : fallbackName);
         RoundFrame avatarFrame = RoundFrame.circle(this);
         avatarFrame.setBackgroundColor(Ui.PRIMARY);
-        TextView initial = Ui.bold(this, nick.substring(0, nick.offsetByCodePoints(0, 1)), 28, Ui.ON_ACCENT);
+        String initialText = nick.isEmpty() ? "抖" : nick.substring(0, nick.offsetByCodePoints(0, 1));
+        TextView initial = Ui.bold(this, initialText, 28, Ui.ON_ACCENT);
         initial.setGravity(Gravity.CENTER);
         avatarFrame.addView(initial, new FrameLayout.LayoutParams(-1, -1));
         ImageView avatar = new ImageView(this);
@@ -236,10 +238,30 @@ public class ProfileActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        backDown = false;
+    }
+
+    @Override
     public boolean dispatchKeyEvent(android.view.KeyEvent event) {
+        int key = event.getKeyCode();
+        if (key == android.view.KeyEvent.KEYCODE_BACK || key == android.view.KeyEvent.KEYCODE_ESCAPE
+                || key == android.view.KeyEvent.KEYCODE_BUTTON_B) {
+            if (event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) backDown = true;
+                return true;
+            }
+            if (event.getAction() == android.view.KeyEvent.ACTION_UP) {
+                boolean fire = backDown && !event.isCanceled();
+                backDown = false;
+                if (fire) finish();
+                return true;
+            }
+            return true;
+        }
         if (event.getAction() == android.view.KeyEvent.ACTION_DOWN) {
             View focus = getCurrentFocus();
-            int key = event.getKeyCode();
             if (key == android.view.KeyEvent.KEYCODE_DPAD_UP
                     && focus != null && gridRef != null && gridRef.isTopRowFocus(focus) && backRef != null) {
                 backRef.requestFocus();

@@ -1068,8 +1068,8 @@ public class FeedView extends FrameLayout {
         Aweme a = current();
         if (wasEnabled && a != null && pages[curSlot] != null) {
             long pos = pages[curSlot].position();
-            App.get().store().addRecent(a);
             if (host != null) host.onProgressSave(a, pos);
+            else App.get().store().addRecent(a);
         }
         if (pages[curSlot] != null) pages[curSlot].saveAndReleasePlayer();
         int standbySlot = 1 - curSlot;

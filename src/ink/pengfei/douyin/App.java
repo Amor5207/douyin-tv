@@ -22,6 +22,7 @@ public class App extends Application {
         final Thread.UncaughtExceptionHandler prevHandler = Thread.getDefaultUncaughtExceptionHandler();
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
             try {
+                android.util.Log.e("dytv-crash", "Uncaught on " + t.getName(), e);
                 java.io.File f = new java.io.File(getCacheDir(), "last_crash.txt");
                 try (java.io.PrintWriter pw = new java.io.PrintWriter(new java.io.FileWriter(f))) {
                     pw.println("Thread: " + t.getName());

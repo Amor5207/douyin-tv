@@ -24,6 +24,8 @@ public final class Async {
                     value = fn.run();
                 } catch (Exception e) {
                     err = e;
+                } catch (Throwable t) {
+                    err = new RuntimeException(t);
                 }
                 final T v = value;
                 final Exception e = err;

@@ -163,6 +163,7 @@ public class LivePageView extends FrameLayout {
     private boolean spinnerScheduled;
     private String[] urls = new String[0];
     private int urlIndex;
+    private long prepareGeneration;
 
     private final Runnable delayedSpinner = this::showDelayedSpinner;
 
@@ -640,103 +641,108 @@ public class LivePageView extends FrameLayout {
         error.setVisibility(GONE);
         if (wantPlay) scheduleLoadingSpinner();
         final String url = urls[urlIndex];
-
-        DefaultRenderersFactory renderers = new DefaultRenderersFactory(getContext())
-                .setEnableDecoderFallback(true);
-        DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
-                .setBufferDurationsMs(1500, 10000, 150, 600)
-                .setPrioritizeTimeOverSizeThresholds(true)
-                .build();
-        Map<String, String> headers = new HashMap<>();
-        headers.put("Referer", "https://live.douyin.com/");
-        String cookies = App.get().api().cookies().header();
-        if (!cookies.isEmpty()) headers.put("Cookie", cookies);
-
-        DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
-                .setUserAgent(ink.pengfei.douyin.net.Http.UA)
-                .setDefaultRequestProperties(headers)
-                .setAllowCrossProtocolRedirects(true)
-                .setConnectTimeoutMs(4000)
-                .setReadTimeoutMs(5000);
-        AudioAttributes audioAttributes = new AudioAttributes.Builder()
-                .setUsage(C.USAGE_MEDIA)
-                .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
-                .build();
-
-        final ExoPlayer exo = new ExoPlayer.Builder(getContext(), renderers)
-                .setMediaSourceFactory(new DefaultMediaSourceFactory(httpFactory)
-                        .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(0)))
-                .setLoadControl(loadControl)
-                .setAudioAttributes(audioAttributes, true)
-                .build();
-        player = exo;
-        exo.setVideoTextureView(surface);
-        exo.setVolume(1f);
-        exo.addListener(new Player.Listener() {
-            @Override public void onPlaybackStateChanged(int playbackState) {
-                if (player != exo || released) return;
-                if (playbackState == Player.STATE_BUFFERING && wantPlay) {
-                    scheduleLoadingSpinner();
-                    if (renderedFirstFrame) {
-                        handler.removeCallbacks(bufferStallTimeout);
-                        handler.postDelayed(bufferStallTimeout, BUFFER_STALL_TIMEOUT_MS);
-                    }
-                } else if (playbackState == Player.STATE_READY) {
-                    prepared = true;
-                    handler.removeCallbacks(bufferStallTimeout);
-                    if (renderedFirstFrame) hideLoadingSpinner();
-                    fitVideo(exo.getVideoSize());
-                } else if (playbackState == Player.STATE_ENDED) {
-                    if (!wantPlay) return;
-                    releasePlayer();
-                    urlIndex++;
-                    prepare();
-                }
-            }
-
-            @Override public void onIsPlayingChanged(boolean isPlaying) {
-                if (player != exo || released) return;
-                if (isPlaying) {
-                    handler.removeCallbacks(bufferStallTimeout);
-                    if (renderedFirstFrame) hideLoadingSpinner();
-                }
-            }
-
-            @Override public void onVideoSizeChanged(VideoSize videoSize) {
-                if (player == exo && !released && videoSize != null) fitVideo(videoSize);
-            }
-
-            @Override public void onRenderedFirstFrame() {
-                if (player != exo || released) return;
-                renderedFirstFrame = true;
-                cancelTimeouts();
-                surface.setAlpha(1f);
-                hideCoverMask();
-                hideLoadingSpinner();
-                if (actions != null) actions.onLivePlaying();
-                if (wantPlay) startDanmaku();
-            }
-
-            @Override public void onPlayerError(PlaybackException error) {
-                if (player != exo || !wantPlay || released) return;
-                android.util.Log.w("dytv-live", "Exo live error=" + error.getErrorCodeName());
-                releasePlayer();
-                urlIndex++;
-                prepare();
-            }
-        });
+        final long gen = ++prepareGeneration;
 
         try {
+            DefaultRenderersFactory renderers = new DefaultRenderersFactory(getContext())
+                    .setEnableDecoderFallback(true);
+            DefaultLoadControl loadControl = new DefaultLoadControl.Builder()
+                    .setBufferDurationsMs(1500, 10000, 150, 600)
+                    .setPrioritizeTimeOverSizeThresholds(true)
+                    .build();
+            Map<String, String> headers = new HashMap<>();
+            headers.put("Referer", "https://live.douyin.com/");
+            String cookies = App.get().api().cookies().header();
+            if (!cookies.isEmpty()) headers.put("Cookie", cookies);
+
+            DefaultHttpDataSource.Factory httpFactory = new DefaultHttpDataSource.Factory()
+                    .setUserAgent(ink.pengfei.douyin.net.Http.UA)
+                    .setDefaultRequestProperties(headers)
+                    .setAllowCrossProtocolRedirects(true)
+                    .setConnectTimeoutMs(4000)
+                    .setReadTimeoutMs(5000);
+            AudioAttributes audioAttributes = new AudioAttributes.Builder()
+                    .setUsage(C.USAGE_MEDIA)
+                    .setContentType(C.AUDIO_CONTENT_TYPE_MOVIE)
+                    .build();
+
+            final ExoPlayer exo = new ExoPlayer.Builder(getContext(), renderers)
+                    .setMediaSourceFactory(new DefaultMediaSourceFactory(httpFactory)
+                            .setLoadErrorHandlingPolicy(new DefaultLoadErrorHandlingPolicy(0)))
+                    .setLoadControl(loadControl)
+                    .setAudioAttributes(audioAttributes, true)
+                    .build();
+            player = exo;
+            exo.setVideoTextureView(surface);
+            exo.setVolume(1f);
+            exo.addListener(new Player.Listener() {
+                @Override public void onPlaybackStateChanged(int playbackState) {
+                    if (player != exo || released) return;
+                    if (playbackState == Player.STATE_BUFFERING && wantPlay) {
+                        scheduleLoadingSpinner();
+                        if (renderedFirstFrame) {
+                            handler.removeCallbacks(bufferStallTimeout);
+                            handler.postDelayed(bufferStallTimeout, BUFFER_STALL_TIMEOUT_MS);
+                        }
+                    } else if (playbackState == Player.STATE_READY) {
+                        prepared = true;
+                        handler.removeCallbacks(bufferStallTimeout);
+                        if (renderedFirstFrame) hideLoadingSpinner();
+                        fitVideo(exo.getVideoSize());
+                    } else if (playbackState == Player.STATE_ENDED) {
+                        if (!wantPlay) return;
+                        advanceStreamAsync(gen);
+                    }
+                }
+
+                @Override public void onIsPlayingChanged(boolean isPlaying) {
+                    if (player != exo || released) return;
+                    if (isPlaying) {
+                        handler.removeCallbacks(bufferStallTimeout);
+                        if (renderedFirstFrame) hideLoadingSpinner();
+                    }
+                }
+
+                @Override public void onVideoSizeChanged(VideoSize videoSize) {
+                    if (player == exo && !released && videoSize != null) fitVideo(videoSize);
+                }
+
+                @Override public void onRenderedFirstFrame() {
+                    if (player != exo || released) return;
+                    renderedFirstFrame = true;
+                    cancelTimeouts();
+                    surface.setAlpha(1f);
+                    hideCoverMask();
+                    hideLoadingSpinner();
+                    if (actions != null) actions.onLivePlaying();
+                    if (wantPlay) startDanmaku();
+                }
+
+                @Override public void onPlayerError(PlaybackException error) {
+                    if (player != exo || !wantPlay || released) return;
+                    android.util.Log.w("dytv-live", "Exo live error=" + error.getErrorCodeName());
+                    advanceStreamAsync(gen);
+                }
+            });
+
             exo.setMediaItem(MediaItem.fromUri(url));
             exo.setPlayWhenReady(wantPlay);
             exo.prepare();
             handler.removeCallbacks(prepareTimeout);
             if (wantPlay) handler.postDelayed(prepareTimeout, FIRST_FRAME_TIMEOUT_MS);
-        } catch (Exception e) {
+        } catch (Throwable e) {
+            android.util.Log.w("dytv-live", "Live prepare failed: " + e);
+            advanceStreamAsync(gen);
+        }
+    }
+
+    private void advanceStreamAsync(final long gen) {
+        handler.post(() -> {
+            if (released || failed || !wantPlay || gen != prepareGeneration) return;
             releasePlayer();
             urlIndex++;
             prepare();
-        }
+        });
     }
 
     private void fitVideo(VideoSize size) {
@@ -873,13 +879,14 @@ public class LivePageView extends FrameLayout {
     }
 
     private void releasePlayer() {
+        prepareGeneration++;
         handler.removeCallbacks(prepareTimeout);
         prepared = false;
         renderedFirstFrame = false;
         if (player != null) {
-            try { player.clearVideoTextureView(surface); } catch (Exception ignored) {}
-            try { player.stop(); } catch (Exception ignored) {}
-            try { player.release(); } catch (Exception ignored) {}
+            try { player.clearVideoTextureView(surface); } catch (Throwable ignored) {}
+            try { player.stop(); } catch (Throwable ignored) {}
+            try { player.release(); } catch (Throwable ignored) {}
             player = null;
         }
         if (surface != null) surface.setAlpha(0f);

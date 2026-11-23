@@ -60,6 +60,7 @@ public class MainActivity extends Activity implements FeedView.Host {
     private int selected = TAB_FEED;
     private boolean switchingTab;
     private boolean tabConfirmDown;
+    private boolean backDown;
     private boolean otherTabsPreloaded;
     private boolean feedLoading;
     private boolean feedAccountState;
@@ -455,7 +456,10 @@ public class MainActivity extends Activity implements FeedView.Host {
         oldRoot.animate().alpha(0f).setDuration(140).setInterpolator(Ui.ease()).withEndAction(() -> {
             Theme.applyWindow(this);
             for (int i = 0; i < pages.length; i++) {
-                if (pages[i] != null) pages[i].onHide();
+                if (pages[i] != null) {
+                    pages[i].onHide();
+                    pages[i].onDestroy();
+                }
                 pages[i] = null;
                 contentFocus[i] = null;
             }
@@ -760,7 +764,16 @@ public class MainActivity extends Activity implements FeedView.Host {
         int key = event.getKeyCode();
         if ((key == KeyEvent.KEYCODE_BACK || key == KeyEvent.KEYCODE_ESCAPE
                 || key == KeyEvent.KEYCODE_BUTTON_B) && feed != null && !feed.menuOpen()) {
-            if (event.getAction() == KeyEvent.ACTION_UP && !event.isCanceled()) handleBack();
+            if (event.getAction() == KeyEvent.ACTION_DOWN) {
+                if (event.getRepeatCount() == 0) backDown = true;
+                return true;
+            }
+            if (event.getAction() == KeyEvent.ACTION_UP) {
+                boolean fire = backDown && !event.isCanceled();
+                backDown = false;
+                if (fire) handleBack();
+                return true;
+            }
             return true;
         }
         View focus = getCurrentFocus();
@@ -839,6 +852,7 @@ public class MainActivity extends Activity implements FeedView.Host {
     @Override
     protected void onResume() {
         super.onResume();
+        backDown = false;
         if (isFinishing()) return;
         if (toLoginIfNeeded()) return;
         ink.pengfei.douyin.update.UpdateManager.onHomeResume(this);
@@ -846,6 +860,7 @@ public class MainActivity extends Activity implements FeedView.Host {
         if (selected == TAB_FEED) {
             feed.refreshDanmakuSettings();
             if (!feed.items().isEmpty() && loadingLayer.getVisibility() != View.VISIBLE) feed.play();
+            if (!dockOpen && !isUnder(dockHost, getCurrentFocus())) feed.requestFocus();
         } else if (pages[selected] != null) {
             pages[selected].onShow();
         }
@@ -870,6 +885,7 @@ public class MainActivity extends Activity implements FeedView.Host {
     @Override
     protected void onPause() {
         super.onPause();
+        backDown = false;
         if (selected == TAB_FEED && feed != null) feed.stop();
         if (selected != TAB_FEED && pages[selected] != null) pages[selected].onHide();
     }
@@ -878,6 +894,12 @@ public class MainActivity extends Activity implements FeedView.Host {
     protected void onDestroy() {
         super.onDestroy();
         handler.removeCallbacksAndMessages(null);
+        for (int i = 0; i < pages.length; i++) {
+            if (pages[i] != null) {
+                pages[i].onDestroy();
+                pages[i] = null;
+            }
+        }
         if (feed != null) feed.destroy();
     }
 
