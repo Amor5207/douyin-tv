@@ -30,6 +30,7 @@ public final class Theme {
     public static int soft(Context c) { return SOFT; }
 
     public static void applyWindow(Activity a) {
+        ink.pengfei.douyin.ui.Ui.adaptScreen(a);
         ink.pengfei.douyin.ui.Ui.applyTheme(a);
         Window w = a.getWindow();
         w.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);

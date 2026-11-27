@@ -26,8 +26,8 @@ esac
 BT="$SDK/build-tools/35.0.0"
 PLATFORM="$SDK/platforms/android-35/android.jar"
 OUT="$ROOT/build"
-VERSION_CODE="${DOUYIN_VERSION_CODE:-1002}"
-VERSION_NAME="${DOUYIN_VERSION_NAME:-1.0.2}"
+VERSION_CODE="${DOUYIN_VERSION_CODE:-1003}"
+VERSION_NAME="${DOUYIN_VERSION_NAME:-1.0.3}"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex"

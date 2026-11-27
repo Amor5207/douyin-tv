@@ -248,20 +248,35 @@ public class LoginActivity extends Activity {
     }
 
     private View build() {
+        android.util.DisplayMetrics dm = getResources().getDisplayMetrics();
+        float widthDp = dm.widthPixels / dm.density;
+        float heightDp = dm.heightPixels / dm.density;
+        boolean compact = widthDp < 820f || heightDp < 480f;
+        boolean narrow = widthDp < 620f || heightDp < 400f;
+        int sidePad = narrow ? 18 : compact ? 28 : 56;
+        int topPad = narrow ? 14 : compact ? 20 : 32;
+        int gapDp = narrow ? 20 : compact ? 36 : 72;
+        float availWidthDp = Math.max(420f, widthDp - sidePad * 2f);
+        int rightW = Math.min(380, Math.max(220, Math.round(availWidthDp * 0.42f)));
+        int leftW = Math.min(450, Math.max(180, Math.round(availWidthDp - rightW - gapDp)));
+        int qrCardDp = Math.min(264, Math.max(176, Math.min(rightW - 24, Math.round(heightDp * 0.48f))));
+        int qrImgDp = qrCardDp - 36;
+
         FrameLayout root = new FrameLayout(this);
         rootView = root;
         root.setBackgroundColor(Ui.BG);
 
         LinearLayout brand = Ui.row(this);
         brand.setGravity(Gravity.CENTER_VERTICAL);
-        brand.addView(Ui.brandIcon(this, 36), Ui.lp(Ui.dp(this, 36), Ui.dp(this, 36)));
-        TextView dou = Ui.wordmark(this, 20);
+        int logoSize = narrow ? 28 : 36;
+        brand.addView(Ui.brandIcon(this, logoSize), Ui.lp(Ui.dp(this, logoSize), Ui.dp(this, logoSize)));
+        TextView dou = Ui.wordmark(this, narrow ? 17 : 20);
         LinearLayout.LayoutParams dl = Ui.lp(-2, -2);
-        dl.leftMargin = Ui.dp(this, 12);
+        dl.leftMargin = Ui.dp(this, narrow ? 8 : 12);
         brand.addView(dou, dl);
         String verText = version();
         if (!verText.isEmpty()) {
-            TextView ver = Ui.text(this, "v" + verText, 13, Ui.TEXT_3, false);
+            TextView ver = Ui.text(this, "v" + verText, narrow ? 12 : 13, Ui.TEXT_3, false);
             LinearLayout.LayoutParams vl = Ui.lp(-2, -2);
             vl.leftMargin = Ui.dp(this, 10);
             brand.addView(ver, vl);
@@ -269,55 +284,56 @@ public class LoginActivity extends Activity {
         FrameLayout.LayoutParams brandLp = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.TOP | Gravity.START);
-        brandLp.setMargins(Ui.dp(this, 56), Ui.dp(this, 32), 0, 0);
+        brandLp.setMargins(Ui.dp(this, sidePad), Ui.dp(this, topPad), 0, 0);
         root.addView(brand, brandLp);
 
         LinearLayout row = Ui.row(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
         LinearLayout left = Ui.column(this);
-        leftTitle = Ui.text(this, "用抖音 App 扫码登录", 28, Ui.TEXT, true);
+        leftTitle = Ui.text(this, "用抖音 App 扫码登录", narrow ? 20 : compact ? 24 : 28, Ui.TEXT, true);
         left.addView(leftTitle);
+        int badgeSize = narrow ? 24 : 28;
         for (int i = 0; i < QR_STEPS.length; i++) {
             LinearLayout line = Ui.row(this);
             line.setGravity(Gravity.CENTER_VERTICAL);
-            TextView number = Ui.text(this, String.valueOf(i + 1), 14, Ui.PRIMARY, true);
+            TextView number = Ui.text(this, String.valueOf(i + 1), narrow ? 12 : 14, Ui.PRIMARY, true);
             number.setGravity(Gravity.CENTER);
-            number.setBackground(Ui.round(this, Ui.TINT_PRIMARY, 14));
-            line.addView(number, Ui.lp(Ui.dp(this, 28), Ui.dp(this, 28)));
-            TextView instruction = Ui.text(this, QR_STEPS[i], 15, Ui.TEXT, false);
+            number.setBackground(Ui.round(this, Ui.TINT_PRIMARY, badgeSize / 2f));
+            line.addView(number, Ui.lp(Ui.dp(this, badgeSize), Ui.dp(this, badgeSize)));
+            TextView instruction = Ui.text(this, QR_STEPS[i], narrow ? 13 : 15, Ui.TEXT, false);
             stepLabels[i] = instruction;
-            LinearLayout.LayoutParams il = Ui.lp(-2, -2);
-            il.leftMargin = Ui.dp(this, 14);
+            LinearLayout.LayoutParams il = Ui.lp(0, -2, 1f);
+            il.leftMargin = Ui.dp(this, narrow ? 10 : 14);
             line.addView(instruction, il);
             LinearLayout.LayoutParams ll = Ui.lp(-1, -2);
-            ll.topMargin = Ui.dp(this, i == 0 ? 22 : 12);
+            ll.topMargin = Ui.dp(this, i == 0 ? (narrow ? 14 : 22) : (narrow ? 10 : 12));
             left.addView(line, ll);
         }
-        LinearLayout.LayoutParams leftLp = Ui.lp(Ui.dp(this, 450), -2);
-        leftLp.rightMargin = Ui.dp(this, 72);
+        LinearLayout.LayoutParams leftLp = Ui.lp(Ui.dp(this, leftW), -2);
+        leftLp.rightMargin = Ui.dp(this, gapDp);
         leftLp.gravity = Gravity.CENTER_VERTICAL;
         row.addView(left, leftLp);
 
         FrameLayout rightSlot = new FrameLayout(this);
-        qrSide = buildQrSide();
+        qrSide = buildQrSide(qrCardDp, qrImgDp, Math.min(320, rightW));
         rightSlot.addView(qrSide, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
         mfaForm = buildMfaForm();
         mfaForm.setVisibility(View.GONE);
         rightSlot.addView(mfaForm, new FrameLayout.LayoutParams(-1, -2, Gravity.CENTER));
 
-        LinearLayout.LayoutParams rightLp = Ui.lp(Ui.dp(this, 380), -2);
+        LinearLayout.LayoutParams rightLp = Ui.lp(Ui.dp(this, rightW), -2);
         rightLp.gravity = Gravity.CENTER_VERTICAL;
         row.addView(rightSlot, rightLp);
 
         FrameLayout.LayoutParams rowLp = new FrameLayout.LayoutParams(-2, -1, Gravity.CENTER);
-        rowLp.topMargin = Ui.dp(this, 36);
+        rowLp.topMargin = Ui.dp(this, narrow ? 20 : compact ? 28 : 36);
         root.addView(row, rowLp);
         Ui.enter(row, 0, 14, 220);
         return root;
     }
 
-    private View buildQrSide() {
+    private View buildQrSide(int cardDp, int imgDp, int textWidthDp) {
         LinearLayout side = Ui.column(this);
         side.setGravity(Gravity.CENTER_HORIZONTAL);
 
@@ -326,7 +342,7 @@ public class LoginActivity extends Activity {
         qrView = new ImageView(this);
         qrView.setScaleType(ImageView.ScaleType.FIT_CENTER);
         card.addView(qrView, new FrameLayout.LayoutParams(
-                Ui.dp(this, 228), Ui.dp(this, 228), Gravity.CENTER));
+                Ui.dp(this, imgDp), Ui.dp(this, imgDp), Gravity.CENTER));
 
         LinearLayout mask = Ui.column(this);
         mask.setGravity(Gravity.CENTER);
@@ -354,18 +370,18 @@ public class LoginActivity extends Activity {
         scannedMask = mask;
         card.addView(mask, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        side.addView(card, Ui.lp(Ui.dp(this, 264), Ui.dp(this, 264)));
+        side.addView(card, Ui.lp(Ui.dp(this, cardDp), Ui.dp(this, cardDp)));
 
         status = Ui.text(this, "正在获取二维码…", 14, Ui.TEXT_3, false);
         status.setGravity(Gravity.CENTER);
-        LinearLayout.LayoutParams sl = Ui.lp(Ui.dp(this, 320), -2);
+        LinearLayout.LayoutParams sl = Ui.lp(Ui.dp(this, textWidthDp), -2);
         sl.topMargin = Ui.dp(this, 14);
         side.addView(status, sl);
 
         subStatus = Ui.text(this, "", 12, Ui.TEXT_4, false);
         subStatus.setGravity(Gravity.CENTER);
         subStatus.setVisibility(View.GONE);
-        LinearLayout.LayoutParams subLp = Ui.lp(Ui.dp(this, 320), -2);
+        LinearLayout.LayoutParams subLp = Ui.lp(Ui.dp(this, textWidthDp), -2);
         subLp.topMargin = Ui.dp(this, 6);
         side.addView(subStatus, subLp);
 

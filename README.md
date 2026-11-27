@@ -8,12 +8,12 @@
 
 抖音第三方 **Android 电视 / 投影仪客户端**
 
-[![Version](https://img.shields.io/badge/version-1.0.2-2ea44f?style=flat-square)](https://github.com/Amor5207/douyin-tv/releases/latest)
+[![Version](https://img.shields.io/badge/version-1.0.3-2ea44f?style=flat-square)](https://github.com/Amor5207/douyin-tv/releases/latest)
 [![Android](https://img.shields.io/badge/Android-6.0%2B-3ddc84?style=flat-square&logo=android&logoColor=white)](#系统要求与安装)
 [![Arch](https://img.shields.io/badge/arch-ARMv7%20%7C%20ARM64%20%7C%20x86%20%7C%20x86__64-16a34a?style=flat-square)](https://github.com/Amor5207/douyin-tv/releases/latest)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue?style=flat-square)](LICENSE)
 
-[下载 1.0.2](https://github.com/Amor5207/douyin-tv/releases/latest) · [界面预览](#界面预览) · [功能特性](#功能特性) · [构建项目](#构建项目)
+[下载 1.0.3](https://github.com/Amor5207/douyin-tv/releases/latest) · [界面预览](#界面预览) · [功能特性](#功能特性) · [构建项目](#构建项目)
 
 <br>
 
@@ -23,7 +23,7 @@
 
 ## 简介
 
-**抖音TV 1.0.2** 是面向智能电视、投影仪与 Android TV 盒子的抖音第三方原生客户端：
+**抖音TV 1.0.3** 是面向智能电视、投影仪与 Android TV 盒子的抖音第三方原生客户端：
 
 - **纯原生大屏设计**：基于 1920×1080 大屏与遥控器方向键交互打造，无多余广告与复杂层级，打开即看推荐流与直播。
 - **全架构通用单包**：纯 Java 实现，不含平台原生 `.so` 库，单个安装包通用 **ARMv7（32 位）/ ARM64（64 位）/ x86 / x86_64** 架构，最低兼容 **Android 6.0（API 23）**。
@@ -71,8 +71,8 @@
 
 | 项目 | 数值 |
 | --- | --- |
-| 当前版本 | `1.0.2` |
-| 内部版本号 | `1002` |
+| 当前版本 | `1.0.3` |
+| 内部版本号 | `1003` |
 | Android 包名 | `ink.pengfei.douyin` |
 
 ---
@@ -86,7 +86,7 @@
 | 解码能力 | 支持 H.264 / H.265 硬件解码 |
 | 架构兼容 | 纯 Java 实现，32 位 / 64 位 ARM 与 x86 全架构通用 |
 
-1. 从 [Releases](https://github.com/Amor5207/douyin-tv/releases/latest) 下载 `DouyinTV-1.0.2.apk`。
+1. 从 [Releases](https://github.com/Amor5207/douyin-tv/releases/latest) 下载 `DouyinTV-1.0.3.apk`。
 2. 通过 U 盘、局域网传输或 ADB 安装到电视或投影仪。
 3. 打开应用后使用手机抖音 App 扫码登录即可开始刷视频、看直播。
 
@@ -103,7 +103,7 @@ sh build.sh
 如需自定义版本号或签名密钥，可通过环境变量覆盖：
 
 ```shell
-DOUYIN_VERSION_NAME=1.0.2 DOUYIN_VERSION_CODE=1002 sh build.sh
+DOUYIN_VERSION_NAME=1.0.3 DOUYIN_VERSION_CODE=1003 sh build.sh
 ```
 
 首次构建时若 `libs/media3/jars` 不存在，脚本会自动运行 `tools/FetchMedia3.java` 拉取 Media3 1.5.1 依赖并预编译 DEX。
