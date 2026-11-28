@@ -40,7 +40,9 @@ public final class DouyinApi {
     private int refreshIndex = 1;
     private int liveFeedOffset = 0;
     private int liveFollowOffset = 0;
-    private long initializedAt;
+    private volatile long initializedAt;
+    private final java.util.concurrent.locks.ReentrantLock bootstrapLock =
+            new java.util.concurrent.locks.ReentrantLock();
     private volatile JSONObject cachedSelfUser;
     private volatile long selfUserAt;
 
@@ -55,16 +57,53 @@ public final class DouyinApi {
         return cookies;
     }
 
-    public synchronized void bootstrap() throws IOException {
+    public void bootstrap() throws IOException {
         bootstrap(false);
     }
 
-    public synchronized void bootstrap(boolean force) throws IOException {
-        long elapsed = android.os.SystemClock.elapsedRealtime();
+    public void bootstrap(boolean force) throws IOException {
+        bootstrap(force, 8000L);
+    }
+
+    /**
+     * 登录页使用：后台心跳线程可能正在 bootstrap，最多等 2 秒；
+     * 拿不到锁就直接继续，二维码请求不能再被别的线程无限期卡住。
+     */
+    public void bootstrapQuick() throws IOException {
+        bootstrap(false, 2000L);
+    }
+
+    private void bootstrap(boolean force, long maxWaitMs) throws IOException {
+        if (!force && isBootstrapFresh()) return;
+        boolean locked;
+        try {
+            locked = bootstrapLock.tryLock(Math.max(0L, maxWaitMs), java.util.concurrent.TimeUnit.MILLISECONDS);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }
+        if (!locked) {
+            android.util.Log.d("dytvlogin", "bootstrap busy, continue without waiting");
+            return;
+        }
+        try {
+            doBootstrap(force);
+        } finally {
+            bootstrapLock.unlock();
+        }
+    }
+
+    private boolean isBootstrapFresh() {
+        return initializedAt != 0
+                && android.os.SystemClock.elapsedRealtime() - initializedAt < 60000L
+                && cookies.lastWebBootstrapMs() != 0L
+                && System.currentTimeMillis() - cookies.lastWebBootstrapMs() <= 30 * 60 * 1000L;
+    }
+
+    private void doBootstrap(boolean force) throws IOException {
         long wall = System.currentTimeMillis();
         boolean staleWeb = cookies.lastWebBootstrapMs() == 0L
                 || wall - cookies.lastWebBootstrapMs() > 30 * 60 * 1000L;
-        if (!force && !staleWeb && initializedAt != 0 && elapsed - initializedAt < 60000L) return;
 
         if (force || staleWeb || !cookies.has("__ac_nonce") || !msTokenCaptured) {
             try {
@@ -801,7 +840,7 @@ public final class DouyinApi {
     private String passportTraceId = hex(4);
     private String verifyPortrait = java.util.UUID.randomUUID().toString() + ".login";
     private String sessionDtrait;
-    private boolean msTokenCaptured;
+    private volatile boolean msTokenCaptured;
 
     private void startLoginSession() {
         passportTraceId = hex(4);

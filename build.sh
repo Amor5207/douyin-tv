@@ -1,6 +1,11 @@
 #!/bin/sh
 # Standalone APK build: aapt2 + javac + d8 + zipalign + apksigner (no Gradle)
 set -e
+# 2 vCPU / 3.6 GiB 机器：固定小堆 + 串行 GC，限制构建进程内存。
+# 虚拟地址空间给 3 GiB：D8 要映射整套 Media3 classpath，2 GiB 会在 dex 阶段 malloc 失败。
+ulimit -v 3145728 2>/dev/null || true
+JOPTS="-Xmx384m -Xms64m -XX:MaxMetaspaceSize=160m -XX:CompressedClassSpaceSize=64m -XX:ReservedCodeCacheSize=96m -XX:+UseSerialGC"
+D8OPTS="-Xmx512m -Xms96m -XX:MaxMetaspaceSize=160m -XX:CompressedClassSpaceSize=64m -XX:ReservedCodeCacheSize=96m -XX:MaxDirectMemorySize=128m -XX:+UseSerialGC"
 ROOT="$(cd "$(dirname "$0")" && pwd)"
 OS="$(uname -s 2>/dev/null || echo Windows)"
 case "$OS" in
@@ -26,8 +31,8 @@ esac
 BT="$SDK/build-tools/35.0.0"
 PLATFORM="$SDK/platforms/android-35/android.jar"
 OUT="$ROOT/build"
-VERSION_CODE="${DOUYIN_VERSION_CODE:-1003}"
-VERSION_NAME="${DOUYIN_VERSION_NAME:-1.0.3}"
+VERSION_CODE="${DOUYIN_VERSION_CODE:-1004}"
+VERSION_NAME="${DOUYIN_VERSION_NAME:-1.0.4}"
 
 rm -rf "$OUT"
 mkdir -p "$OUT/gen" "$OUT/classes" "$OUT/dex"
@@ -36,14 +41,14 @@ if [ ! -d "$ROOT/libs/media3/jars" ] || [ -z "$(ls -A "$ROOT/libs/media3/jars" 2
     echo "Fetching Media3 1.5.1 dependencies..."
     mkdir -p "$OUT/tools"
     "$JDK/javac$EXE" -encoding UTF-8 -d "$OUT/tools" "$(wpath "$ROOT/tools/FetchMedia3.java")"
-    "$JDK/java$EXE" -cp "$(wpath "$OUT/tools")" FetchMedia3 "$(wpath "$ROOT/libs/media3/jars")"
+    "$JDK/java$EXE" $JOPTS -cp "$(wpath "$OUT/tools")" FetchMedia3 "$(wpath "$ROOT/libs/media3/jars")"
 fi
 
 if [ ! -f "$ROOT/libs/media3/deps_dex.jar" ]; then
     echo "Pre-dexing dependencies..."
     wpath "$ROOT/libs/zxing-core-3.5.3.jar" > "$OUT/deps.txt"
     find "$ROOT/libs/media3/jars" -name "*.jar" | while read -r f; do wpath "$f"; done >> "$OUT/deps.txt"
-    "$JDK/java$EXE" -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
+    "$JDK/java$EXE" $D8OPTS -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
         --lib "$PLATFORM" --min-api 23 --output "$(wpath "$ROOT/libs/media3/deps_dex.jar")" @"$(wpath "$OUT/deps.txt")"
 fi
 
@@ -66,7 +71,8 @@ for jar in "$ROOT/libs/media3/jars/"*.jar; do
 done
 
 find "$ROOT/src" "$OUT/gen" -name "*.java" | while read -r f; do wpath "$f"; done > "$OUT/sources.txt"
-"$JDK/javac$EXE" -encoding UTF-8 -source 8 -target 8 \
+"$JDK/javac$EXE" -J-Xmx384m -J-XX:MaxMetaspaceSize=192m -J-XX:CompressedClassSpaceSize=96m \
+    -encoding UTF-8 -source 8 -target 8 \
     -cp "$CP" \
     -d "$OUT/classes" @"$(wpath "$OUT/sources.txt")"
 
@@ -75,9 +81,9 @@ D8_CP="--classpath $(wpath "$ROOT/libs/zxing-core-3.5.3.jar")"
 for jar in "$ROOT/libs/media3/jars/"*.jar; do
     D8_CP="$D8_CP --classpath $(wpath "$jar")"
 done
-"$JDK/java$EXE" -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
+"$JDK/java$EXE" $D8OPTS -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
     --lib "$PLATFORM" $D8_CP --min-api 23 --output "$(wpath "$OUT/app_dex.jar")" @"$(wpath "$OUT/classes.txt")"
-"$JDK/java$EXE" -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
+"$JDK/java$EXE" $D8OPTS -cp "$BT/lib/d8.jar" com.android.tools.r8.D8 \
     --min-api 23 --output "$(wpath "$OUT/dex")" \
     "$(wpath "$OUT/app_dex.jar")" "$(wpath "$ROOT/libs/media3/deps_dex.jar")"
 
@@ -92,7 +98,7 @@ if [ ! -f "$ROOT/debug.keystore" ]; then
 fi
 
 APK_VERSIONED="$OUT/DouyinTV-$VERSION_NAME.apk"
-"$JDK/java$EXE" -jar "$BT/lib/apksigner.jar" sign \
+"$JDK/java$EXE" $JOPTS -jar "$BT/lib/apksigner.jar" sign \
     --ks "${DOUYIN_KEYSTORE:-$ROOT/debug.keystore}" \
     --ks-pass "${DOUYIN_STORE_PASS:-pass:android}" \
     --key-pass "${DOUYIN_KEY_PASS:-pass:android}" \

@@ -107,6 +107,7 @@ public class LoginActivity extends Activity {
     private int completeFailures;
     private int qrAttempts;
     private int qrSeq;
+    private static final long QR_FETCH_TIMEOUT_MS = 30000L;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final Random random = new Random();
 
@@ -610,10 +611,20 @@ public class LoginActivity extends Activity {
     private void fetchQr() {
         if (isFinishing() || qrLoading) return;
         qrLoading = true;
-        final int seq = qrSeq;
-        Async.run(new Async.Fn<JSONObject>() {
+        final int seq = ++qrSeq;
+        // UI 层硬超时：底层 DNS/TLS 卡住时也必须给用户反馈，不能一直停在“正在获取二维码”。
+        handler.postDelayed(new Runnable() {
+            @Override public void run() {
+                if (isFinishing() || seq != qrSeq || !qrLoading) return;
+                qrLoading = false;
+                qrSeq++;
+                android.util.Log.d("dytvlogin", "QR fetch timeout, seq=" + seq);
+                retryQr("获取二维码超时，请检查电视网络");
+            }
+        }, QR_FETCH_TIMEOUT_MS);
+        Async.runLogin(new Async.Fn<JSONObject>() {
             @Override public JSONObject run() throws Exception {
-                App.get().api().bootstrap();
+                App.get().api().bootstrapQuick();
                 return App.get().api().getQrCode();
             }
         }, new Async.Cb<JSONObject>() {
@@ -621,7 +632,9 @@ public class LoginActivity extends Activity {
                 if (isFinishing() || seq != qrSeq) return;
                 qrLoading = false;
                 if (data == null) {
-                    retryQr("二维码获取失败，请检查网络");
+                    String detail = qrErrorText(error);
+                    android.util.Log.d("dytvlogin", "QR fetch failed: " + detail, error);
+                    retryQr(detail);
                     return;
                 }
                 token = data.optString("token", "");
@@ -629,7 +642,13 @@ public class LoginActivity extends Activity {
                 Bitmap bmp = decode(b64);
                 if (token.isEmpty() || bmp == null) {
                     String desc = data.optString("description", "");
-                    retryQr(desc.isEmpty() ? "二维码获取失败" : desc);
+                    int code = data.optInt("error_code", 0);
+                    if (desc.isEmpty()) {
+                        desc = code != 0 ? "二维码接口错误码 " + code : "二维码获取失败";
+                    }
+                    android.util.Log.d("dytvlogin", "QR payload invalid: token=" + !token.isEmpty()
+                            + ", image=" + (bmp != null) + ", code=" + code + ", desc=" + desc);
+                    retryQr(desc);
                     return;
                 }
                 qrAttempts = 0;
@@ -1207,6 +1226,18 @@ public class LoginActivity extends Activity {
         setSub(message);
         refreshBtn.setVisibility(View.VISIBLE);
         refreshBtn.requestFocus();
+    }
+
+    private static String qrErrorText(Exception error) {
+        if (error == null) return "二维码获取失败，请检查网络";
+        Throwable t = error;
+        for (int i = 0; i < 6 && t.getCause() != null && t.getCause() != t; i++) t = t.getCause();
+        String name = t.getClass().getSimpleName();
+        if (t instanceof java.net.UnknownHostException) return "域名解析失败，请检查电视 DNS 或网络";
+        if (t instanceof java.net.SocketTimeoutException) return "连接抖音服务器超时，请检查电视网络";
+        if (t instanceof java.net.ConnectException) return "无法连接抖音服务器，请检查电视网络";
+        if (t instanceof javax.net.ssl.SSLException) return "安全连接失败，请检查电视系统时间或网络";
+        return "二维码获取失败（" + name + "）";
     }
 
     private static Bitmap decode(String b64) {
